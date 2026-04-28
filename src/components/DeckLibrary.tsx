@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from "react";
-import { FolderPlus, Plus, Search, FileText, ArrowLeft, X, ChevronRight } from "lucide-react";
+import { FolderPlus, Plus, Search, FileText, ArrowLeft, X, ChevronRight, Upload } from "lucide-react";
 import type { Deck } from "../types";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -31,6 +31,7 @@ interface DeckLibraryProps {
   onDownloadDeck: (id: string) => void;
   newlyCreatedId: string | null;
   onClearNewlyCreatedId: () => void;
+  onImportRawJson: () => void;
 }
 
 export function DeckLibrary({
@@ -46,6 +47,7 @@ export function DeckLibrary({
   onDownloadDeck,
   newlyCreatedId,
   onClearNewlyCreatedId,
+  onImportRawJson,
 }: DeckLibraryProps) {
   const [search, setSearch] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
@@ -239,6 +241,10 @@ export function DeckLibrary({
                 <DropdownMenuItem onClick={() => onCreateDeck(currentFolderId)}>
                   <FileText className="size-3.5 mr-2 text-muted-foreground" />
                   New Deck
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={onImportRawJson}>
+                  <Upload className="size-3.5 mr-2 text-muted-foreground" />
+                  Import Data
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

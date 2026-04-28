@@ -26,9 +26,10 @@ interface SidebarProps {
   trashCount: number;
   inboxCount: number;
   onSettings: () => void;
+  onImport: () => void;
 }
 
-export function Sidebar({ onDashboard, onLibrary, onInbox, onTrash, view, onResizeMouseDown, trashCount, inboxCount, onSettings }: SidebarProps) {
+export function Sidebar({ onDashboard, onLibrary, onInbox, onTrash, view, onResizeMouseDown, trashCount, inboxCount, onSettings, onImport }: SidebarProps) {
   const { setOpenMobile, state } = useSidebar();
 
   const handleNav = (fn: () => void) => {
@@ -100,6 +101,16 @@ export function Sidebar({ onDashboard, onLibrary, onInbox, onTrash, view, onResi
 
       <SidebarFooter className="p-2 border-t mt-auto">
         <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              tooltip="Import Data"
+              onClick={onImport}
+              className="text-muted-foreground hover:text-foreground"
+            >
+              <Inbox className="size-4 shrink-0" />
+              <span>Import Data</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
           <SidebarMenuItem>
             <SidebarMenuButton
               tooltip="Settings"

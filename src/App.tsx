@@ -10,7 +10,7 @@ import { CardModal } from "./components/CardModal";
 import { TrashView } from "./components/TrashView";
 import { ImportDeckDialog } from "./components/ImportDeckDialog";
 import type { Deck, Flashcard } from "./types";
-import { getDecks, saveDecks } from "./lib/storage";
+import { getDecks, saveDecks, saveActivityLog } from "./lib/storage";
 import { extractInboxCards, calculateSRS, isCardDue } from "./lib/srs";
 import { hasClozeMarkers } from "./lib/cloze";
 import { SettingsModal } from "./components/SettingsModal";
@@ -42,6 +42,88 @@ export default function App() {
   const isDragging = useRef(false);
   const startX = useRef(0);
   const startWidth = useRef(256);
+  const importFileInputRef = useRef<HTMLInputElement>(null);
+  const importDeckFileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleImportDeckClick = () => {
+    importDeckFileInputRef.current?.click();
+  };
+
+  const handleImportDeckChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      if (parsed.type === "quizlet_clone_deck_export") {
+        const root = parsed.root as Deck;
+        const children = (parsed.children as Deck[]) || [];
+        const idMap = new Map<string, string>();
+
+        const newRootId = `deck-${crypto.randomUUID()}`;
+        idMap.set(root.id, newRootId);
+
+        const newRoot = { ...root, id: newRootId, parentId: libraryFolderId };
+        const newChildren = children.map(child => {
+          const newChildId = `deck-${crypto.randomUUID()}`;
+          idMap.set(child.id, newChildId);
+          return { ...child, id: newChildId };
+        }).map(child => {
+          return { ...child, parentId: child.parentId ? idMap.get(child.parentId) || child.parentId : child.parentId };
+        });
+
+        // Ensure flashcards get new random IDs to prevent collision if duplicated
+        const resetCards = (deck: Deck) => ({
+          ...deck,
+          cards: deck.cards?.map(c => ({ ...c, id: `card-${crypto.randomUUID()}` })) || []
+        });
+
+        updateDecks([...decks, resetCards(newRoot), ...newChildren.map(resetCards)]);
+        setNewlyCreatedId(newRootId);
+        toast({ title: "Import successful", description: `Imported "${newRoot.title}" ${children.length > 0 ? `and ${children.length} sub-items` : ''}.` });
+
+      } else if (parsed.id && parsed.title) {
+        // legacy single item import
+        const newId = `deck-${crypto.randomUUID()}`;
+        const newDeck = { ...parsed, id: newId, parentId: libraryFolderId, cards: parsed.cards?.map((c: any) => ({ ...c, id: `card-${crypto.randomUUID()}` })) || [] };
+        updateDecks([...decks, newDeck]);
+        setNewlyCreatedId(newId);
+        toast({ title: "Import successful", description: `Imported "${newDeck.title}".` });
+      } else {
+        toast({ title: "Invalid format", description: "Not a valid deck/folder JSON.", variant: "destructive" });
+      }
+    } catch (err) {
+      toast({ title: "Import failed", description: "Failed to parse JSON file.", variant: "destructive" });
+    }
+    if (importDeckFileInputRef.current) importDeckFileInputRef.current.value = "";
+  };
+
+  const handleImportDataClick = () => {
+    importFileInputRef.current?.click();
+  };
+
+  const handleImportDataChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const data = JSON.parse(text);
+      if (data.type === "quizlet_clone_backup") {
+        if (data.decks) {
+          updateDecks(data.decks);
+        }
+        if (data.activity) {
+          await saveActivityLog(data.activity);
+        }
+        toast({ title: "Import successful", description: "All user data has been restored." });
+      } else {
+        toast({ title: "Invalid file", description: "The file is not a valid backup.", variant: "destructive" });
+      }
+    } catch (err) {
+      toast({ title: "Import failed", description: "Failed to parse backup file.", variant: "destructive" });
+    }
+    if (importFileInputRef.current) importFileInputRef.current.value = "";
+  };
 
   const onMouseDown = useCallback((e: React.MouseEvent) => {
     isDragging.current = true;
@@ -306,7 +388,15 @@ export default function App() {
   const handleDownloadDeck = (id: string) => {
     const target = decks.find(d => d.id === id);
     if (!target) return;
-    const dataStr = JSON.stringify(target, null, 2);
+
+    const descendants = getAllDescendantIds(id, decks).map(did => decks.find(d => d.id === did)).filter(Boolean);
+    const exportData = {
+      type: "quizlet_clone_deck_export",
+      root: target,
+      children: descendants
+    };
+
+    const dataStr = JSON.stringify(exportData, null, 2);
     const blob = new Blob([dataStr], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -410,7 +500,7 @@ export default function App() {
           onResizeMouseDown={onMouseDown}
           trashCount={trashCount}
           inboxCount={inboxCards.length}
-
+          onImport={handleImportDataClick}
         />
         <main className="flex-1 flex flex-col h-full overflow-y-auto overflow-x-hidden relative">
           {view === "dashboard" && (
@@ -430,6 +520,7 @@ export default function App() {
               onNavigate={setLibraryFolderId}
               newlyCreatedId={newlyCreatedId}
               onClearNewlyCreatedId={() => setNewlyCreatedId(null)}
+              onImportRawJson={handleImportDeckClick}
             />
           )}
           {view === "deck" && activeDeck && (
@@ -516,6 +607,20 @@ export default function App() {
             open={showImportDeck}
             onOpenChange={setShowImportDeck}
             onImport={handleImportJsonDeck}
+          />
+          <input
+            type="file"
+            accept=".json"
+            ref={importFileInputRef}
+            className="hidden"
+            onChange={handleImportDataChange}
+          />
+          <input
+            type="file"
+            accept=".json"
+            ref={importDeckFileInputRef}
+            className="hidden"
+            onChange={handleImportDeckChange}
           />
         </main>
       </div>

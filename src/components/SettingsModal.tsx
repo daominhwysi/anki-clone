@@ -7,6 +7,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Check, Type } from "lucide-react";
+import { getDecks, getActivityLog } from "@/lib/storage";
 import { cn } from "@/lib/utils";
 
 const FONTS = [
@@ -42,6 +43,29 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
     localStorage.setItem("app-font", fontValue);
   };
 
+  const handleExportData = async () => {
+    try {
+      const decks = await getDecks();
+      const activity = await getActivityLog();
+      const backup = {
+        type: "quizlet_clone_backup",
+        version: 1,
+        timestamp: new Date().toISOString(),
+        decks,
+        activity,
+      };
+      const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `quizlet_backup_${new Date().toISOString().split("T")[0]}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px]">
@@ -75,6 +99,15 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
               </Button>
             ))}
           </div>
+        </div>
+
+        <div className="py-4 mt-4 border-t border-border">
+          <h4 className="text-sm font-medium mb-3 text-muted-foreground uppercase tracking-wider">
+            Data Management
+          </h4>
+          <Button onClick={handleExportData} className="w-full" variant="outline">
+            Export All User Data
+          </Button>
         </div>
 
         <div className="mt-4 p-4 rounded-lg bg-muted/50 border border-border">
